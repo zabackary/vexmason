@@ -16,13 +16,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         if arg == "--write" {
             let file_name = &mut args[i + 1];
             let transformed = transform_file(Path::new(file_name))?;
-            let mut new_file = NamedTempFile::new()?;
+            let mut new_file = NamedTempFile::with_prefix("vexpythonpreprocessor-")?;
             new_file.write_all(&transformed.into_bytes())?;
             *file_name = new_file.path().to_str().ok_or("failed!")?.to_string();
             temp_file = Some(new_file);
         }
     }
-    let mut child = Command::new("echo")
+    let mut child = Command::new("./vexcom.old")
         .args(args)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
@@ -45,13 +45,12 @@ fn transform_file(path: &Path) -> Result<String, Box<dyn Error>> {
     let mut transformer_child = Command::new("python")
         .args(vec![
             "-m",
-            "./lib/python-module-merger",
+            "python-compiler",
             "-i",
-            path.to_str().ok_or("failed to transform")?,
+            path.canonicalize()?.to_str().ok_or("failed to transform")?,
             "--ignore-imports",
             "vex",
             "-j",
-            "-m",
         ])
         .current_dir(std::fs::canonicalize("./lib/")?)
         .stdout(Stdio::piped())
