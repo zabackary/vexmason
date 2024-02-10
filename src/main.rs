@@ -13,13 +13,29 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut temp_file: Option<NamedTempFile> = None;
     let mut args: Vec<String> = env::args().skip(1).collect();
     for (i, arg) in args.clone().iter().enumerate() {
-        if arg == "--write" {
+        if arg == "--write" && i < args.len() - 1 {
             let file_name = &mut args[i + 1];
-            let transformed = transform_file(Path::new(file_name))?;
-            let mut new_file = NamedTempFile::with_prefix("vexpythonpreprocessor-")?;
-            new_file.write_all(&transformed.into_bytes())?;
-            *file_name = new_file.path().to_str().ok_or("failed!")?.to_string();
-            temp_file = Some(new_file);
+            let file_path = Path::new(&file_name);
+            if let Some(extension) = file_path.extension() {
+                if extension == "py" {
+                    let transformed = transform_file(file_path)?;
+                    let mut new_file = tempfile::Builder::new()
+                        .prefix("vexpythonpreprocessor-")
+                        .suffix(&format!(
+                            ".{}",
+                            file_path
+                                .extension()
+                                .expect("filename doesn't have an extension")
+                                .to_str()
+                                .unwrap()
+                        ))
+                        .tempfile()?;
+                    new_file.write_all(&transformed.into_bytes())?;
+                    let new_file_path = new_file.path().to_str().ok_or("failed!")?.to_string();
+                    *file_name = new_file_path;
+                    temp_file = Some(new_file);
+                }
+            }
         }
     }
     let mut child = Command::new("./vexcom.old")
@@ -32,7 +48,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let exit_status = child.wait().expect("failed to wait on child");
 
-    std::mem::drop(temp_file);
+    if let Some(file) = temp_file {
+        file.keep()?;
+    }
+
+    // std::mem::drop(temp_file);
 
     if exit_status.success() {
         Ok(())
@@ -48,8 +68,10 @@ fn transform_file(path: &Path) -> Result<String, Box<dyn Error>> {
             "python-compiler",
             "-i",
             path.canonicalize()?.to_str().ok_or("failed to transform")?,
-            "--ignore-imports",
+            "--remove-imports",
             "vex",
+            "--prelude",
+            "from vex import *",
             "-j",
         ])
         .current_dir(std::fs::canonicalize("./lib/")?)
