@@ -13,7 +13,7 @@ pub fn compile_file(path: &Path) -> anyhow::Result<String> {
     lib_dir.push("lib");
     let mut transformer_child = Command::new("python")
         .args(["-m", "python-compiler", "--input"])
-        .arg(path.canonicalize()?.as_os_str())
+        .arg(dunce::canonicalize(path)?.as_os_str())
         .args([
             "--remove-imports",
             "vex",

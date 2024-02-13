@@ -24,7 +24,7 @@ pub fn get_installation_path(reference_path: Option<&Path>) -> anyhow::Result<Pa
             Ok(dir) => dir.into(),
             Err(err) => {
                 if let Some(path) = reference_path {
-                    let path = path.canonicalize()?;
+                    let path = dunce::canonicalize(path)?;
                     let components: Vec<Component> = path.components().collect();
                     let root = components
                         .iter()

@@ -12,13 +12,13 @@ fn main() -> anyhow::Result<()> {
     let installation_path =
         get_installation_path(std::env::args().next().as_deref().map(Path::new))?;
 
-    let location: String = std::env::current_exe()
-        .with_context(|| "failed to obtain current exe path")?
-        .canonicalize()
-        .with_context(|| "failed to canonicalize")?
-        .to_str()
-        .ok_or(anyhow::anyhow!("path is not valid utf-8"))?
-        .to_owned();
+    let location: String = dunce::canonicalize(
+        std::env::current_exe().with_context(|| "failed to obtain current exe path")?,
+    )
+    .with_context(|| "failed to canonicalize")?
+    .to_str()
+    .ok_or(anyhow::anyhow!("path is not valid utf-8"))?
+    .to_owned();
 
     let mut child = Command::new(installation_path.join("bin").join("vexpreprocessor"))
         .args([location].into_iter().chain(std::env::args().skip(1)))

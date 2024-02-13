@@ -50,9 +50,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     let mut child = Command::new(
-        vexcom_location
-            .with_file_name(VEXCOM_OLD_NAME)
-            .canonicalize()
+        dunce::canonicalize(vexcom_location.with_file_name(VEXCOM_OLD_NAME))
             .with_context(|| "failed to locate vexcom.old")?
             .as_os_str(),
     )
