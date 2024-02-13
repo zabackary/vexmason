@@ -12,7 +12,7 @@ pub const VEXCOM_OLD_NAME: &str = "vexcom.old";
 #[cfg(target_os = "linux")]
 pub const VEXCOM_OLD_NAME: &str = "vexcom.old";
 
-const INSTALLATION_DIRECTORY: &str = "vex-python-preprocessor";
+const INSTALLATION_DIRECTORY: &str = "vexmason";
 
 /// Gets the path of the current installation.
 ///
@@ -20,7 +20,7 @@ const INSTALLATION_DIRECTORY: &str = "vex-python-preprocessor";
 /// environment variables), uses reference_path to find it.
 pub fn get_installation_path(reference_path: Option<&Path>) -> anyhow::Result<PathBuf> {
     if cfg!(target_os = "windows") {
-        let local_app_data: PathBuf = match std::env::var("LOCALAPPDATA_HI") {
+        let local_app_data: PathBuf = match std::env::var("LOCALAPPDATA") {
             Ok(dir) => dir.into(),
             Err(err) => {
                 if let Some(path) = reference_path {
@@ -56,8 +56,8 @@ pub fn get_installation_path(reference_path: Option<&Path>) -> anyhow::Result<Pa
         };
         Ok(local_app_data.join(INSTALLATION_DIRECTORY))
     } else if cfg!(target_os = "linux") {
-        Ok(PathBuf::from_str("~/.local/bin")?.join("INSTALLATION_DIRECTORY"))
+        Ok(PathBuf::from_str("~/.local/bin")?.join(INSTALLATION_DIRECTORY))
     } else {
-        bail!("unsupported operating system");
+        bail!("unsupported operating system")
     }
 }
