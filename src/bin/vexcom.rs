@@ -20,7 +20,7 @@ fn main() -> anyhow::Result<()> {
         .ok_or(anyhow::anyhow!("path is not valid utf-8"))?
         .to_owned();
 
-    let mut child = Command::new(installation_path.join("vexpreprocessor"))
+    let mut child = Command::new(installation_path.join("bin").join("vexpreprocessor"))
         .args([location].into_iter().chain(std::env::args().skip(1)))
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())

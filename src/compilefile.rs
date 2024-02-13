@@ -9,6 +9,7 @@ use serde_json::Value;
 pub fn compile_file(path: &Path) -> anyhow::Result<String> {
     let mut lib_dir = std::env::current_exe()?;
     lib_dir.pop();
+    lib_dir.pop();
     lib_dir.push("lib");
     let mut transformer_child = Command::new("python")
         .args(["-m", "python-compiler", "--input"])
