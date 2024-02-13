@@ -1,3 +1,0 @@
-[submodule "lib/python-compiler"]
-	path = lib/python-compiler
-	url = https://github.com/zabackary/python-compiler
