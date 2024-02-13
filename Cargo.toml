@@ -1,5 +1,5 @@
 [package]
-name = "vex-python-preprocessor"
+name = "vexmason"
 version = "0.1.0"
 edition = "2021"
 

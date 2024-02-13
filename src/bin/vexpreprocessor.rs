@@ -8,7 +8,7 @@ use std::{
 use anyhow::Context;
 use tempfile::NamedTempFile;
 
-use vex_python_preprocessor::{compilefile, installationlocation::VEXCOM_OLD_NAME};
+use vexmason::{compilefile, installationlocation::VEXCOM_OLD_NAME};
 
 fn main() -> anyhow::Result<()> {
     let mut temp_file: Option<NamedTempFile> = None;

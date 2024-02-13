@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::{ensure, Context};
 
-use vex_python_preprocessor::{checkversions, installationlocation::get_installation_path};
+use vexmason::{checkversions, installationlocation::get_installation_path};
 
 fn main() -> anyhow::Result<()> {
     ensure!(!cfg!(target_os = "macos"), "at this time, MacOS is not supported. if you would like to support it, create a GitHub issue.");
