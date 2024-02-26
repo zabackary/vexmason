@@ -8,7 +8,7 @@ use super::model::ConfigDefineType;
 
 lazy_static! {
     static ref TEMPLATE_REGEX: Regex =
-        Regex::new(r"(?P<match>{{\s*(?P<content>.*?)\s*}})").unwrap();
+        Regex::new(r"(?P<match>\{\{\s*(?P<content>.*?)\s*\}\})").unwrap();
 }
 
 pub fn evaluate_template<'a>(
