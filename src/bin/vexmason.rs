@@ -1,73 +1,118 @@
-use std::{
-    env,
-    io::Write,
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
-};
+use std::{env, path::PathBuf, process::Stdio};
 
 use anyhow::Context;
-use tempfile::NamedTempFile;
 
-use vexmason::{compilefile, installationlocation::VEXCOM_OLD_NAME};
+use chrono::Local;
+use tokio::{
+    fs,
+    io::{stderr, AsyncWriteExt},
+    process::Command,
+};
+use vexmason::{
+    config::{resolved_config_from_entry_point, ResolvedConfig},
+    installationlocation::VEXCOM_OLD_NAME,
+    modify_args::{entry_point, modify_args, ModifyOptions},
+    tee::tee,
+};
 
-fn main() -> anyhow::Result<()> {
-    let mut temp_file: Option<NamedTempFile> = None;
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     let mut args = env::args().skip(1);
     let vexcom_location = Into::<PathBuf>::into(
         args.next()
             .ok_or(anyhow::anyhow!("can't read vexcom location"))?,
     );
+
     let mut args: Vec<String> = args.collect();
-    for (i, arg) in args.clone().iter().enumerate() {
-        if arg == "--write" && i < args.len() - 1 {
-            let file_name = &mut args[i + 1];
-            let file_path = Path::new(&file_name);
-            if let Some(extension) = file_path.extension() {
-                if extension == "py" {
-                    let transformed = compilefile::compile_file(file_path)?;
-                    let mut new_file = tempfile::Builder::new()
-                        .prefix("vexpythonpreprocessor-")
-                        .suffix(&format!(
-                            ".{}",
-                            file_path
-                                .extension()
-                                .expect("filename doesn't have an extension")
-                                .to_str()
-                                .unwrap()
-                        ))
-                        .tempfile()?;
-                    new_file.write_all(&transformed.into_bytes())?;
-                    let new_file_path = new_file
-                        .path()
-                        .to_str()
-                        .ok_or(anyhow::anyhow!("failed to parse path as utf-8"))?
-                        .to_string();
-                    *file_name = new_file_path;
-                    temp_file = Some(new_file);
-                }
+
+    match entry_point(&args).await {
+        None => {
+            let mut child = Command::new(
+                dunce::canonicalize(vexcom_location.with_file_name(VEXCOM_OLD_NAME))
+                    .with_context(|| "failed to locate vexcom.old")?
+                    .as_os_str(),
+            )
+            .args(args)
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .stdin(Stdio::inherit())
+            .spawn()
+            .with_context(|| "failed to execute vexcom.old")?;
+
+            let exit_status = child
+                .wait()
+                .await
+                .with_context(|| "failed to wait on child")?;
+
+            if exit_status.success() {
+                Ok(())
+            } else {
+                std::process::exit(exit_status.code().unwrap_or(1));
             }
         }
-    }
+        Some(entry_point) => {
+            let config: ResolvedConfig = resolved_config_from_entry_point(entry_point).await?;
+            let mut logs_destination = fs::File::create(config.log_output()).await?;
+            logs_destination
+                .write(
+                    format!(
+                        "vexmason log ({})\n",
+                        Local::now().format("%a %d %b %Y, %I:%M%p")
+                    )
+                    .as_bytes(),
+                )
+                .await?;
 
-    let mut child = Command::new(
-        dunce::canonicalize(vexcom_location.with_file_name(VEXCOM_OLD_NAME))
-            .with_context(|| "failed to locate vexcom.old")?
-            .as_os_str(),
-    )
-    .args(args)
-    .stdout(Stdio::inherit())
-    .stderr(Stdio::inherit())
-    .stdin(Stdio::inherit())
-    .spawn()
-    .with_context(|| "failed to execute vexcom.old")?;
+            match modify_args(
+                &mut args,
+                &ModifyOptions {
+                    name: &config.name,
+                    description: &config.description,
+                    compile_target_file: &config.build_output(),
+                    compile_minify: config.minify,
+                    compile_defines: &config.defines,
+                },
+            )
+            .await
+            {
+                Ok(_) => {}
+                Err(e) => {
+                    logs_destination.write(format!("{e}\n").as_bytes()).await?;
+                }
+            }
 
-    let exit_status = child.wait().with_context(|| "failed to wait on child")?;
+            let mut child = Command::new(
+                dunce::canonicalize(vexcom_location.with_file_name(VEXCOM_OLD_NAME))
+                    .with_context(|| "failed to locate vexcom.old")?
+                    .as_os_str(),
+            )
+            .args(args)
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::piped())
+            .stdin(Stdio::inherit())
+            .spawn()
+            .with_context(|| "failed to execute vexcom.old")?;
 
-    std::mem::drop(temp_file);
+            let child_stderr_handle = tokio::task::spawn(tee(
+                child
+                    .stderr
+                    .take()
+                    .ok_or_else(|| anyhow::anyhow!("failed to secure child stderr"))?,
+                logs_destination,
+                stderr(),
+            ));
 
-    if exit_status.success() {
-        Ok(())
-    } else {
-        std::process::exit(exit_status.code().unwrap_or(1));
+            let exit_status = child
+                .wait()
+                .await
+                .with_context(|| "failed to wait on child")?;
+
+            child_stderr_handle.await??;
+            if exit_status.success() {
+                Ok(())
+            } else {
+                std::process::exit(exit_status.code().unwrap_or(1));
+            }
+        }
     }
 }
