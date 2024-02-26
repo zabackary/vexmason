@@ -54,8 +54,4 @@ impl ResolvedConfig {
     pub fn build_output(&self) -> PathBuf {
         self.project_root.join("build").join("compiled.py")
     }
-
-    pub fn log_output(&self) -> PathBuf {
-        self.project_root.join("build").join("vexmason-logs.txt")
-    }
 }

@@ -127,20 +127,14 @@ async fn resolved_config_from_files(
     })
 }
 
-pub async fn resolved_config_from_entry_point(
-    entry_point: &Path,
-) -> anyhow::Result<ResolvedConfig> {
-    match root(entry_point) {
-        Some(root) => {
-            let vscode = root.join(".vscode");
-            resolved_config_from_files(
-                &vscode.join(CONFIG_FILE),
-                &vscode.join(CONFIG_OVERRIDES_FILE),
-                &root
-            ).await
-        }
-        None => bail!("Failed to resolve config! Make sure the project has a vex_project_settings.json and a {} present.", CONFIG_FILE)
-    }
+pub async fn resolved_config_from_root(root: &Path) -> anyhow::Result<ResolvedConfig> {
+    let vscode = root.join(".vscode");
+    resolved_config_from_files(
+        &vscode.join(CONFIG_FILE),
+        &vscode.join(CONFIG_OVERRIDES_FILE),
+        &root,
+    )
+    .await
 }
 
 async fn config_from_file(path: &Path) -> anyhow::Result<JsonConfigV1> {

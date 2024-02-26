@@ -9,7 +9,7 @@ use tokio::{
     process::Command,
 };
 use vexmason::{
-    config::{resolved_config_from_entry_point, ResolvedConfig},
+    config::{resolved_config_from_root, root},
     installationlocation::VEXCOM_OLD_NAME,
     modify_args::{entry_point, modify_args, ModifyOptions},
     tee::tee,
@@ -51,8 +51,16 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Some(entry_point) => {
-            let config: ResolvedConfig = resolved_config_from_entry_point(entry_point).await?;
-            let mut logs_destination = fs::File::create(config.log_output()).await?;
+            let root = root(entry_point).with_context(||"Failed to resolve config! Make sure the project has a vex_project_settings.json and a {} present.")?;
+            let build = root.join("build");
+            if !build.exists() {
+                fs::create_dir(root.join("build"))
+                    .await
+                    .with_context(|| "couldn't create output dir")?;
+            }
+            let mut logs_destination = fs::File::create(build.join("vexmason-log.txt"))
+                .await
+                .with_context(|| "couldn't create log file")?;
             logs_destination
                 .write(
                     format!(
@@ -62,6 +70,20 @@ async fn main() -> anyhow::Result<()> {
                     .as_bytes(),
                 )
                 .await?;
+
+            let config = match resolved_config_from_root(&root)
+                .await
+                .with_context(|| "couldn't resolve config")
+            {
+                Ok(config) => config,
+                Err(e) => {
+                    logs_destination
+                        .write(format!("{e:?}\n").as_bytes())
+                        .await?;
+                    eprintln!("{}", e.to_string());
+                    std::process::exit(2);
+                }
+            };
 
             match modify_args(
                 &mut args,
@@ -77,7 +99,10 @@ async fn main() -> anyhow::Result<()> {
             {
                 Ok(_) => {}
                 Err(e) => {
-                    logs_destination.write(format!("{e}\n").as_bytes()).await?;
+                    // make vex ignore the error but still visible to user
+                    logs_destination
+                        .write(format!("{e:?}\n").as_bytes())
+                        .await?;
                 }
             }
 
