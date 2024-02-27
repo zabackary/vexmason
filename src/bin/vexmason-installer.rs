@@ -14,8 +14,8 @@ use tokio::{
 };
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use vexmason::{
-    checkversions,
-    installationlocation::{
+    check_versions,
+    installation_location::{
         get_installation_path, get_user_directory, VEXCOM_NAME, VEXCOM_OLD_NAME,
     },
 };
@@ -51,7 +51,7 @@ async fn body() -> anyhow::Result<()> {
     ensure!(!cfg!(target_os = "macos"), "At this time, MacOS is not supported. if you would like to support it, create a GitHub issue.");
     ensure!(cfg!(target_os = "windows"), "At this time, Windows is the only supported OS. Please create a GitHub issue if you would like to help support another.");
 
-    checkversions::check_versions()?;
+    check_versions::check_versions()?;
 
     println!("Welcome to the vexmason installation wizard.");
     println!("Downloading latest release metadata...");

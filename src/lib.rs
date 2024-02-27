@@ -1,6 +1,6 @@
-pub mod checkversions;
-pub mod compilefile;
+pub mod check_versions;
+pub mod compile_file;
 pub mod config;
-pub mod installationlocation;
+pub mod installation_location;
 pub mod modify_args;
 pub mod tee;

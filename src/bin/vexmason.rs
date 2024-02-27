@@ -10,7 +10,7 @@ use tokio::{
 };
 use vexmason::{
     config::{resolved_config_from_root, root},
-    installationlocation::VEXCOM_OLD_NAME,
+    installation_location::VEXCOM_OLD_NAME,
     modify_args::{entry_point, modify_args, ModifyOptions},
     tee::tee,
 };

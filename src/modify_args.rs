@@ -5,7 +5,7 @@ use base64::Engine;
 use tokio::io::AsyncWrite;
 
 use crate::{
-    compilefile::{self, CompileFileOptions},
+    compile_file::{self, CompileFileOptions},
     config::ConfigDefineType,
 };
 
@@ -65,7 +65,7 @@ async fn modify_write(
     let file_path = Path::new(&argument);
     if let Some(extension) = file_path.extension() {
         if extension == "py" {
-            compilefile::compile_file(
+            compile_file::compile_file(
                 &CompileFileOptions {
                     input: file_path,
                     output: Some(compile_target_file), // ask python to do the write for us

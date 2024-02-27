@@ -6,7 +6,7 @@ use std::{
 };
 
 use anyhow::Context;
-use vexmason::installationlocation::get_installation_path;
+use vexmason::installation_location::get_installation_path;
 
 fn main() -> anyhow::Result<()> {
     let installation_path =
