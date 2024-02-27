@@ -14,12 +14,11 @@ pub use model::{ConfigDefineType, ResolvedConfig};
 
 use self::template::evaluate_template;
 
-const DEFAULT_DESCRIPTION: &str = r"compiled by vexmason
-Timestamp: {{ time }}
-Computer name: {{ computer-name }}
-{{ language::emoji }} Language
-{{ minify::emoji }} Minified
-Defines ({{ defines::count }}):
+const DEFAULT_DESCRIPTION: &str = "\u{1F530}{{ language::emoji }}{{ minify::emoji-pinch }}
+compiled by vexmason
+at {{ time/hour }}:{{ time/second }}
+by {{ computer-name }}
+| {{ defines::count }} defines:
 {{ defines::list }}
 ";
 const DEFAULT_MINIFY: bool = false;
@@ -108,7 +107,7 @@ async fn resolved_config_from_files(
         config
             .description
             .as_ref()
-            .map_or(DEFAULT_DESCRIPTION, |x| x),
+            .map_or(&DEFAULT_DESCRIPTION.replace('\n', " "), |x| x),
         computer_name,
         &config.language,
         minify,
