@@ -23,16 +23,15 @@ pub fn evaluate_template<'a>(
             "computer-name" => computer_name.to_string(),
 
             "language" => language.to_string(),
-            "language::emoji" => match language {
-                "python" => '\u{1F40D}', // snake emoji
-                "cpp" => '\u{1F4A9}', // this is a poop emoji since vexmason doesn't support cpp :)
-                _ => '\u{2753}',      // question mark emoji
+            "language::short" => match language {
+                "python" => "py",
+                "cpp" => "cpp",
+                _ => "?",
             }
             .to_string(),
 
             "minify" => minify.to_string(),
-            "minify::emoji" => if minify { '\u{2713}' } else { '\u{274C}' }.to_string(),
-            "minify::emoji-pinch" => if minify { "\u{1F90F}" } else { "" }.to_string(),
+            "minify::short" => if minify { "y" } else { "n" }.to_string(),
 
             "time" => Local::now().format("%a %d %b %Y, %I:%M%p").to_string(),
             "time::iso8601" => Local::now().format("%+").to_string(),

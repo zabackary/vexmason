@@ -14,10 +14,9 @@ pub use model::{ConfigDefineType, ResolvedConfig};
 
 use self::template::evaluate_template;
 
-const DEFAULT_DESCRIPTION: &str = "\u{1F530}{{ language::emoji }}{{ minify::emoji-pinch }}
-compiled by vexmason
-at {{ time/hour }}:{{ time/second }}
-by {{ computer-name }}
+const DEFAULT_DESCRIPTION: &str = "compiled by vexmason
+at {{ time/hour }}:{{ time/minute }}
+by {{ computer-name }} | {{ language::short }} | min: {{ minify::short }}
 | {{ defines::count }} defines:
 {{ defines::list }}
 ";
