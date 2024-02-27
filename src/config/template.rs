@@ -32,6 +32,7 @@ pub fn evaluate_template<'a>(
 
             "minify" => minify.to_string(),
             "minify::emoji" => if minify { '\u{2713}' } else { '\u{274C}' }.to_string(),
+            "minify::emoji-pinch" => if minify { "\u{1F90F}" } else { "" }.to_string(),
 
             "time" => Local::now().format("%a %d %b %Y, %I:%M%p").to_string(),
             "time::iso8601" => Local::now().format("%+").to_string(),
@@ -45,9 +46,9 @@ pub fn evaluate_template<'a>(
                 let mut define_str = String::new();
                 for (k, v) in resolved_defines {
                     define_str.push_str(k);
-                    define_str.push_str(" = ");
+                    define_str.push_str("=");
                     define_str.push_str(&Into::<String>::into(v.clone()));
-                    define_str.push_str("\n");
+                    define_str.push_str(", ");
                 }
                 define_str
             }

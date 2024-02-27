@@ -58,10 +58,10 @@ async fn main() -> anyhow::Result<()> {
                     .await
                     .with_context(|| "couldn't create output dir")?;
             }
-            let mut logs_destination = fs::File::create(build.join("vexmason-log.txt"))
+            let mut logs_file = fs::File::create(build.join("vexmason-log.txt"))
                 .await
                 .with_context(|| "couldn't create log file")?;
-            logs_destination
+            logs_file
                 .write(
                     format!(
                         "vexmason log ({})\n",
@@ -77,9 +77,7 @@ async fn main() -> anyhow::Result<()> {
             {
                 Ok(config) => config,
                 Err(e) => {
-                    logs_destination
-                        .write(format!("{e:?}\n").as_bytes())
-                        .await?;
+                    logs_file.write(format!("{e:?}\n").as_bytes()).await?;
                     eprintln!("{}", e.to_string());
                     std::process::exit(2);
                 }
@@ -94,18 +92,35 @@ async fn main() -> anyhow::Result<()> {
                     compile_minify: config.minify,
                     compile_defines: &config.defines,
                 },
+                &mut logs_file,
             )
             .await
             {
                 Ok(_) => {}
                 Err(e) => {
                     // make vex ignore the error but still visible to user
-                    logs_destination
-                        .write(format!("{e:?}\n").as_bytes())
-                        .await?;
+                    logs_file.write(format!("{e:?}\n").as_bytes()).await?;
                 }
             }
 
+            logs_file
+                .write(
+                    format!(
+                        "Running:\n$ vexcom.old {}\n",
+                        args.iter()
+                            .map(|arg| {
+                                if arg.contains(' ') {
+                                    format!("\"{arg}\"")
+                                } else {
+                                    arg.to_string()
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    )
+                    .as_bytes(),
+                )
+                .await?;
             let mut child = Command::new(
                 dunce::canonicalize(vexcom_location.with_file_name(VEXCOM_OLD_NAME))
                     .with_context(|| "failed to locate vexcom.old")?
@@ -123,7 +138,9 @@ async fn main() -> anyhow::Result<()> {
                     .stderr
                     .take()
                     .ok_or_else(|| anyhow::anyhow!("failed to secure child stderr"))?,
-                logs_destination,
+                logs_file.try_clone().await.with_context(|| {
+                    "failed to clone logs file to allow vexcom.old to write stderr to logs"
+                })?,
                 stderr(),
             ));
 
@@ -134,8 +151,12 @@ async fn main() -> anyhow::Result<()> {
 
             child_stderr_handle.await??;
             if exit_status.success() {
+                logs_file.write("completed successfully".as_bytes()).await?;
                 Ok(())
             } else {
+                logs_file
+                    .write("compiled, but vexcom.old exited with a non-zero exit code".as_bytes())
+                    .await?;
                 std::process::exit(exit_status.code().unwrap_or(1));
             }
         }

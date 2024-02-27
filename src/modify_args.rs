@@ -2,6 +2,7 @@ use std::{collections::HashMap, path::Path};
 
 use anyhow::Context;
 use base64::Engine;
+use tokio::io::AsyncWrite;
 
 use crate::{
     compilefile::{self, CompileFileOptions},
@@ -20,6 +21,7 @@ pub struct ModifyOptions<'a> {
 pub async fn modify_args<'a>(
     args: &mut Vec<String>,
     options: &ModifyOptions<'a>,
+    log_file: &mut (impl AsyncWrite + std::marker::Unpin),
 ) -> anyhow::Result<()> {
     for (i, flag) in args.clone().iter().take(args.len() - 1).enumerate() {
         // will never iterate over the last argument
@@ -31,6 +33,7 @@ pub async fn modify_args<'a>(
                     options.compile_target_file,
                     options.compile_minify,
                     options.compile_defines,
+                    log_file,
                 )
                 .await?
             }
@@ -57,16 +60,20 @@ async fn modify_write(
     compile_target_file: &Path,
     minify: bool,
     defines: &HashMap<String, ConfigDefineType>,
+    log_file: &mut (impl AsyncWrite + std::marker::Unpin),
 ) -> anyhow::Result<()> {
     let file_path = Path::new(&argument);
     if let Some(extension) = file_path.extension() {
         if extension == "py" {
-            compilefile::compile_file(&CompileFileOptions {
-                input: file_path,
-                output: Some(compile_target_file), // ask python to do the write for us
-                minify,
-                defines,
-            })
+            compilefile::compile_file(
+                &CompileFileOptions {
+                    input: file_path,
+                    output: Some(compile_target_file), // ask python to do the write for us
+                    minify,
+                    defines,
+                },
+                log_file,
+            )
             .await?;
             let target_file_str = compile_target_file
                 .to_str()
