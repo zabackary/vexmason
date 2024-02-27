@@ -71,7 +71,7 @@ async fn main() -> anyhow::Result<()> {
                 )
                 .await?;
 
-            let config = match resolved_config_from_root(&root)
+            let config = match resolved_config_from_root(&root, &mut logs_file)
                 .await
                 .with_context(|| "couldn't resolve config")
             {
@@ -82,6 +82,9 @@ async fn main() -> anyhow::Result<()> {
                     std::process::exit(2);
                 }
             };
+            logs_file
+                .write(format!("resolved config\n{:?}\n", config).as_bytes())
+                .await?;
 
             match modify_args(
                 &mut args,

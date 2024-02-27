@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, fmt::Display, path::PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum ConfigDefineType {
     String(String),
     Number(f32),
@@ -15,6 +16,12 @@ impl Into<String> for ConfigDefineType {
             ConfigDefineType::Number(a) => a.to_string(),
             ConfigDefineType::String(a) => a,
         }
+    }
+}
+
+impl Display for ConfigDefineType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", Into::<String>::into(self.clone()))
     }
 }
 

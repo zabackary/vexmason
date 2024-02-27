@@ -7,7 +7,7 @@ use anyhow::{bail, Context};
 use model::{JsonConfigV1, JsonConfigV1Overrides};
 use tokio::{
     fs,
-    io::{self, AsyncReadExt},
+    io::{self, AsyncReadExt, AsyncWrite, AsyncWriteExt},
 };
 
 pub use model::{ConfigDefineType, ResolvedConfig};
@@ -48,6 +48,7 @@ async fn resolved_config_from_files(
     config_path: &Path,
     config_overrides_path: &Path,
     project_root: &Path,
+    log_file: &mut (impl AsyncWrite + Unpin),
 ) -> anyhow::Result<ResolvedConfig> {
     let config = config_from_file(config_path).await.with_context(|| {
         format!(
@@ -76,12 +77,21 @@ async fn resolved_config_from_files(
     if let Some(defines_overrides) = config_overrides.defines_overrides {
         for (define_override, value) in defines_overrides {
             if resolved_defines.get(&define_override).is_some() {
+                log_file
+                    .write(
+                        format!(
+                            "overriding define with local value: {}={}\n",
+                            define_override, value
+                        )
+                        .as_bytes(),
+                    )
+                    .await?;
                 resolved_defines.insert(define_override, value);
             } else {
                 bail!(
-                "overrides file defines '{}' without a default value being present in the main config file",
-                &define_override
-            );
+                    "overrides file defines '{}' without a default value being present in the main config file",
+                    &define_override
+                );
             }
         }
     }
@@ -125,12 +135,16 @@ async fn resolved_config_from_files(
     })
 }
 
-pub async fn resolved_config_from_root(root: &Path) -> anyhow::Result<ResolvedConfig> {
+pub async fn resolved_config_from_root(
+    root: &Path,
+    log_file: &mut (impl AsyncWrite + Unpin),
+) -> anyhow::Result<ResolvedConfig> {
     let vscode = root.join(".vscode");
     resolved_config_from_files(
         &vscode.join(CONFIG_FILE),
         &vscode.join(CONFIG_OVERRIDES_FILE),
         &root,
+        log_file,
     )
     .await
 }
