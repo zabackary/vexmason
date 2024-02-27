@@ -26,6 +26,7 @@ impl Display for ConfigDefineType {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(super) struct JsonConfigV1 {
     pub config_version: usize,
     /// needs to be parsed for placeholders
@@ -38,6 +39,7 @@ pub(super) struct JsonConfigV1 {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(super) struct JsonConfigV1Overrides {
     pub config_version: usize,
     pub computer_name: Option<String>,
