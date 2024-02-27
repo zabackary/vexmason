@@ -18,7 +18,7 @@ to bundle the files, which I also wrote.
 
 - [x] Integrate into the native VEX VSCode extension and bundle files behind-
       the-scenes.
-- [ ] _(in progress)_ Read a config file and substitute defined constants.
+- [x] Read a config file _and substitute defined constants_ (seems to be broken).
 - [ ] _(in progress)_ Lets you select possible constant values from a UI.
 
 ## Installation
