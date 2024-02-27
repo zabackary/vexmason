@@ -24,14 +24,14 @@ it so you can write your code in different modules and rely on the tooling to
 condense it into an uploadable single Python file. It also lets you do CPP-style
 `#define` at compile-time!
 
-VEXMason utilizes [`python-compiler`](https://github.com/zabackary/python-compiler)
+vexmason utilizes [`python-compiler`](https://github.com/zabackary/python-compiler)
 to bundle the files, which I also wrote.
 
 ## Features
 
 - [x] Integrate into the native VEX VSCode extension and bundle files behind-
       the-scenes.
-- [x] Read a config file _and substitute defined constants_ (seems to be broken).
+- [x] Read a config file and substitute defined constants.
 - [ ] _(in progress)_ Lets you select possible constant values from a UI.
 
 ## Installation
