@@ -37,6 +37,17 @@ fn pause(msg: &str) {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    match body().await {
+        Ok(_) => Ok(()),
+        Err(err) => {
+            eprintln!("Something went wrong!\n{err:?}");
+            pause("\nPress ENTER to exit");
+            Err(err)
+        }
+    }
+}
+
+async fn body() -> anyhow::Result<()> {
     ensure!(!cfg!(target_os = "macos"), "At this time, MacOS is not supported. if you would like to support it, create a GitHub issue.");
     ensure!(cfg!(target_os = "windows"), "At this time, Windows is the only supported OS. Please create a GitHub issue if you would like to help support another.");
 
@@ -165,6 +176,7 @@ async fn main() -> anyhow::Result<()> {
         }
     }
     let bin_dir = installation_directory.join("bin");
+    println!("Downloading binaries...");
     install_bin(&release.assets, "vexmason.exe", &bin_dir).await?;
     println!("Installation has finished.");
     pause("Press ENTER to exit...");
