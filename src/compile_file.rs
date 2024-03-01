@@ -14,6 +14,7 @@ pub struct CompileFileOptions<'a> {
     pub output: Option<&'a Path>,
     pub minify: bool,
     pub defines: &'a HashMap<String, ConfigDefineType>,
+    pub app_data_location: &'a Path,
 }
 
 pub async fn compile_file<'a>(
@@ -55,7 +56,7 @@ pub async fn compile_file<'a>(
     log_file
         .write(
             format!(
-                "Running:\n$ python -m python-compiler {}\n",
+                "Running:\n$ python {}\n",
                 args
                     .iter()
                     .map(|arg_os| -> anyhow::Result<String> {
@@ -75,9 +76,13 @@ pub async fn compile_file<'a>(
             )
             .as_bytes()
         ).await?;
+    #[cfg(target_os = "windows")]
+    {
+        transformer_child.env("AppData", options.app_data_location);
+    }
     transformer_child
         .args(args)
-        .current_dir(lib_dir)
+        .current_dir(dunce::canonicalize(lib_dir)?)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .stdin(Stdio::null());

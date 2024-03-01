@@ -10,7 +10,7 @@ use tokio::{
 };
 use vexmason::{
     config::{resolved_config_from_root, root},
-    installation_location::VEXCOM_OLD_NAME,
+    installation_location::{self, VEXCOM_OLD_NAME},
     modify_args::{entry_point, modify_args, ModifyOptions},
     tee::tee,
 };
@@ -22,6 +22,7 @@ async fn main() -> anyhow::Result<()> {
         args.next()
             .ok_or(anyhow::anyhow!("can't read vexcom location"))?,
     );
+    let user_directory = installation_location::get_user_directory(Some(&vexcom_location))?;
 
     let mut args: Vec<String> = args.collect();
 
@@ -94,6 +95,7 @@ async fn main() -> anyhow::Result<()> {
                     compile_target_file: &config.build_output(),
                     compile_minify: config.minify,
                     compile_defines: &config.defines,
+                    app_data_location: &user_directory.join("AppData").join("Roaming"),
                 },
                 &mut logs_file,
             )

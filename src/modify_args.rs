@@ -16,6 +16,7 @@ pub struct ModifyOptions<'a> {
     pub name: &'a str,
     /// must be converted to base64 before upload
     pub description: &'a str,
+    pub app_data_location: &'a Path,
 }
 
 pub async fn modify_args<'a>(
@@ -33,6 +34,7 @@ pub async fn modify_args<'a>(
                     options.compile_target_file,
                     options.compile_minify,
                     options.compile_defines,
+                    options.app_data_location,
                     log_file,
                 )
                 .await?
@@ -60,6 +62,7 @@ async fn modify_write(
     compile_target_file: &Path,
     minify: bool,
     defines: &HashMap<String, ConfigDefineType>,
+    app_data_location: &Path,
     log_file: &mut (impl AsyncWrite + std::marker::Unpin),
 ) -> anyhow::Result<()> {
     let file_path = Path::new(&argument);
@@ -71,6 +74,7 @@ async fn modify_write(
                     output: Some(compile_target_file), // ask python to do the write for us
                     minify,
                     defines,
+                    app_data_location,
                 },
                 log_file,
             )
