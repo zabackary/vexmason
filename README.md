@@ -1,24 +1,37 @@
-# VEXMason
+# vexmason
 
 > _"If you can think of a better name, let me know."_
 
-VEXMason is a comprehensive build system for VEX V5 Python. It lets you
+<table align="center">
+      <tr>
+            <td>
+                  <b>
+                        Get started now!
+                        <i><a href="https://github.com/zabackary/vexmason-template">
+                              Go make a copy of the vexmason template
+                        </a></i>
+                  </b>
+            </td>
+      </tr>
+</table>
+
+vexmason is a comprehensive build system for VEX V5 Python. It lets you
 modularize and refactor your code into maintainable and modern OOP Python
 classes and files within the V5 ecosystem.
 
-VEXMason acts as a compiler/bundler for Python, like Rollup is for JS, and makes
+vexmason acts as a compiler/bundler for Python, like Rollup is for JS, and makes
 it so you can write your code in different modules and rely on the tooling to
 condense it into an uploadable single Python file. It also lets you do CPP-style
 `#define` at compile-time!
 
-VEXMason utilizes [`python-compiler`](https://github.com/zabackary/python-compiler)
+vexmason utilizes [`python-compiler`](https://github.com/zabackary/python-compiler)
 to bundle the files, which I also wrote.
 
 ## Features
 
 - [x] Integrate into the native VEX VSCode extension and bundle files behind-
       the-scenes.
-- [x] Read a config file _and substitute defined constants_ (seems to be broken).
+- [x] Read a config file and substitute defined constants.
 - [ ] _(in progress)_ Lets you select possible constant values from a UI.
 
 ## Installation
@@ -35,6 +48,36 @@ download/run the `installer.exe` file associated with the latest release.
 Windows will (probably) flag the file as "unsafe". If you trust me, you can
 ignore it. If you don't, read the code and [compile it from the source](#Development)
 yourself.
+
+## Configuration
+
+vexmason will only run on directories with both a `vex_project_settings.json`
+file AND a `vexmason-config.json` file in the `.vscode` directory. You should
+also have a `vexmason-local-config.json` file there too. The format is:
+
+`vexmason-config.json`
+```json
+{
+  "config_version": 1,
+  "name": "{{ defines/__AUTONOMOUS_ROUTE__ }} | vexmason template",
+  "description": "A description. If ommited, vexmason will generate one for you.",
+  "language": "python",
+  "default_defines": {
+    "__AUTONOMOUS_ROUTE__": "route1",
+  }
+}
+```
+
+`vexmason-local-config.json`
+```json
+{
+  "config_version": 1,
+  "computer_name": "your computer name",
+  "defines_overrides": {
+    "__COMPETITION_MODE__": false
+  }
+}
+```
 
 ## Development
 
