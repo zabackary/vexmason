@@ -1,11 +1,9 @@
 use std::{collections::HashMap, ffi::OsString, path::Path, process::Stdio, str::FromStr};
 
 use anyhow::{bail, Context};
+use log::{debug, error, info};
 use serde_json::Value;
-use tokio::{
-    io::{AsyncReadExt, AsyncWrite, AsyncWriteExt},
-    process::Command,
-};
+use tokio::{io::AsyncReadExt, process::Command};
 
 use crate::config::ConfigDefineType;
 
@@ -17,10 +15,7 @@ pub struct CompileFileOptions<'a> {
     pub app_data_location: &'a Path,
 }
 
-pub async fn compile_file<'a>(
-    options: &CompileFileOptions<'a>,
-    log_file: &mut (impl AsyncWrite + std::marker::Unpin),
-) -> anyhow::Result<Option<String>> {
+pub async fn compile_file<'a>(options: &CompileFileOptions<'a>) -> anyhow::Result<Option<String>> {
     let mut lib_dir = std::env::current_exe()?;
     lib_dir.pop();
     lib_dir.pop();
@@ -53,29 +48,10 @@ pub async fn compile_file<'a>(
         args.push(OsString::from_str("--output").unwrap());
         args.push(path.as_os_str().to_owned());
     }
-    log_file
-        .write(
-            format!(
-                "Running:\n$ python {}\n",
-                args
-                    .iter()
-                    .map(|arg_os| -> anyhow::Result<String> {
-                        let arg = arg_os.to_str()
-                            .with_context(|| anyhow::anyhow!(
-                                "one or more of the arguments to be passed to vexcom.exe cannot be decoded as valid utf8."
-                            ))?
-                            .to_owned();
-                        Ok(if arg.contains(' ') {
-                            format!("\"{arg}\"").to_owned()
-                        } else {
-                            arg
-                        })
-                    })
-                    .collect::<anyhow::Result<Vec<_>>>()?
-                    .join(" ")
-            )
-            .as_bytes()
-        ).await?;
+
+    info!("running python to compile entry file");
+    debug!("args => {:?}", args);
+
     #[cfg(target_os = "windows")]
     {
         transformer_child.env("AppData", options.app_data_location);
@@ -95,9 +71,11 @@ pub async fn compile_file<'a>(
         .await
         .with_context(|| "failed to wait on child")?;
 
-    log_file
-        .write(format!("Finished with success? {}\n", exit_status.success()).as_bytes())
-        .await?;
+    if exit_status.success() {
+        info!("compiled successfully")
+    } else {
+        error!("failed to compile!")
+    }
 
     if exit_status.success() {
         if options.output.is_none() {
@@ -122,7 +100,7 @@ pub async fn compile_file<'a>(
         if let (Some(Value::String(error_name)), Some(Value::String(error_msg))) =
             (output_value.get("name"), output_value.get("msg"))
         {
-            bail!(format!("transform failed: {error_name}: {error_msg}"))
+            bail!(format!("transform failed ({error_name}): {error_msg}"))
         }
         bail!("transform failed: failed to read error")
     }

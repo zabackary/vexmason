@@ -4,10 +4,11 @@ mod template;
 use std::{collections::HashMap, path::Path};
 
 use anyhow::{bail, Context};
+use log::{info, warn};
 use model::{JsonConfigV1, JsonConfigV1Overrides};
 use tokio::{
     fs,
-    io::{self, AsyncReadExt, AsyncWrite, AsyncWriteExt},
+    io::{self, AsyncReadExt},
 };
 
 pub use model::{ConfigDefineType, ResolvedConfig};
@@ -23,7 +24,7 @@ by {{ computer-name }} | {{ language::short }} | min: {{ minify::short }}
 const DEFAULT_MINIFY: bool = false;
 
 pub const CONFIG_FILE: &str = "vexmason-config.json";
-const CONFIG_OVERRIDES_FILE: &str = "vexmason-local-config.json";
+pub const CONFIG_OVERRIDES_FILE: &str = "vexmason-local-config.json";
 
 pub fn root(entry_point: &Path) -> Option<std::path::PathBuf> {
     let mut buf = entry_point.to_path_buf();
@@ -48,7 +49,6 @@ async fn resolved_config_from_files(
     config_path: &Path,
     config_overrides_path: &Path,
     project_root: &Path,
-    log_file: &mut (impl AsyncWrite + Unpin),
 ) -> anyhow::Result<ResolvedConfig> {
     let config = config_from_file(config_path).await.with_context(|| {
         format!(
@@ -77,29 +77,27 @@ async fn resolved_config_from_files(
     if let Some(defines_overrides) = config_overrides.defines_overrides {
         for (define_override, value) in defines_overrides {
             if resolved_defines.get(&define_override).is_some() {
-                log_file
-                    .write(
-                        format!(
-                            "overriding define with local value: {}={}\n",
-                            define_override, value
-                        )
-                        .as_bytes(),
-                    )
-                    .await?;
+                info!(
+                    "overriding define with local value: {} = {}\n",
+                    define_override, value
+                );
                 resolved_defines.insert(define_override, value);
             } else {
-                bail!(
-                    "overrides file defines '{}' without a default value being present in the main config file",
-                    &define_override
+                warn!(
+                    "local config defines '{}' without a default value being present in the main config file, ignoring",
+                    define_override
                 );
             }
         }
     }
 
-    let computer_name = config_overrides
-        .computer_name
-        .as_ref()
-        .map_or("unknown", |x| x);
+    let computer_name = config_overrides.computer_name.as_ref().map_or_else(
+        || {
+            warn!("computer name not specified in config, defaulting to 'unknown'");
+            "unknown"
+        },
+        |x| x,
+    );
 
     let minify = config.minify.unwrap_or(DEFAULT_MINIFY);
 
@@ -140,16 +138,12 @@ async fn resolved_config_from_files(
     })
 }
 
-pub async fn resolved_config_from_root(
-    root: &Path,
-    log_file: &mut (impl AsyncWrite + Unpin),
-) -> anyhow::Result<ResolvedConfig> {
+pub async fn resolved_config_from_root(root: &Path) -> anyhow::Result<ResolvedConfig> {
     let vscode = root.join(".vscode");
     resolved_config_from_files(
         &vscode.join(CONFIG_FILE),
         &vscode.join(CONFIG_OVERRIDES_FILE),
         &root,
-        log_file,
     )
     .await
 }
