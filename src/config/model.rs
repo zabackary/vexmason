@@ -36,6 +36,7 @@ pub(super) struct JsonConfigV1 {
     pub language: String,
     pub minify: Option<bool>,
     pub default_defines: Option<HashMap<String, ConfigDefineType>>,
+    pub entry_file: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,6 +58,7 @@ pub struct ResolvedConfig {
     pub defines: HashMap<String, ConfigDefineType>,
     pub project_root: PathBuf,
     pub minify: bool,
+    pub entry_file: PathBuf,
 }
 
 impl ResolvedConfig {

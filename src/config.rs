@@ -22,7 +22,7 @@ by {{ computer-name }} | {{ language::short }} | min: {{ minify::short }}
 ";
 const DEFAULT_MINIFY: bool = false;
 
-const CONFIG_FILE: &str = "vexmason-config.json";
+pub const CONFIG_FILE: &str = "vexmason-config.json";
 const CONFIG_OVERRIDES_FILE: &str = "vexmason-local-config.json";
 
 pub fn root(entry_point: &Path) -> Option<std::path::PathBuf> {
@@ -124,6 +124,10 @@ async fn resolved_config_from_files(
     )
     .to_string();
 
+    let resolved_entry_file = dunce::canonicalize(
+        project_root.join(config.entry_file.unwrap_or("src/main.py".to_string())),
+    )?;
+
     Ok(ResolvedConfig {
         config_version: config.config_version,
         defines: resolved_defines,
@@ -132,6 +136,7 @@ async fn resolved_config_from_files(
         name: resolved_name,
         project_root: project_root.to_path_buf(),
         minify,
+        entry_file: resolved_entry_file,
     })
 }
 

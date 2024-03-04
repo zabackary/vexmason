@@ -9,9 +9,10 @@ use tokio::{
     process::Command,
 };
 use vexmason::{
-    config::{resolved_config_from_root, root},
+    compile_file,
+    config::{self, resolved_config_from_root, root},
     installation_location::{self, VEXCOM_OLD_NAME},
-    modify_args::{entry_point, modify_args, ModifyOptions},
+    modify_args::{entry_point, has_write, modify_args, ModifyOptions},
     tee::tee,
 };
 
@@ -26,8 +27,9 @@ async fn main() -> anyhow::Result<()> {
 
     let mut args: Vec<String> = args.collect();
 
-    match entry_point(&args).await {
+    match entry_point(&args) {
         None => {
+            // if not in a vexmason project, just proxy to vexcom
             let mut child = Command::new(
                 dunce::canonicalize(vexcom_location.with_file_name(VEXCOM_OLD_NAME))
                     .with_context(|| "failed to locate vexcom.old")?
@@ -52,12 +54,17 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Some(entry_point) => {
-            let root = root(entry_point).with_context(||"Failed to resolve config! Make sure the project has a vex_project_settings.json and a {} present.")?;
+            let root = root(entry_point).with_context(
+                || anyhow::anyhow!(
+                    "Failed to resolve config! Make sure the project has a vex_project_settings.json and a {} present.",
+                    config::CONFIG_FILE
+                )
+            )?;
             let build = root.join("build");
             if !build.exists() {
                 fs::create_dir(root.join("build"))
                     .await
-                    .with_context(|| "couldn't create output dir")?;
+                    .with_context(|| "couldn't create build output dir")?;
             }
             let mut logs_file = fs::File::create(build.join("vexmason-log.txt"))
                 .await
@@ -87,20 +94,37 @@ async fn main() -> anyhow::Result<()> {
                 .write(format!("resolved config\n{:?}\n", config).as_bytes())
                 .await?;
 
+            if has_write(&args) {
+                match compile_file::compile_file(
+                    &compile_file::CompileFileOptions {
+                        input: &config.entry_file,
+                        output: Some(&config.build_output()),
+                        minify: config.minify,
+                        defines: &config.defines,
+                        app_data_location: &user_directory.join("AppData").join("Roaming"),
+                    },
+                    &mut logs_file,
+                )
+                .await
+                {
+                    Ok(_) => {}
+                    Err(e) => {
+                        logs_file
+                            .write(format!("error during compilation:\n{e:?}\n").as_bytes())
+                            .await?;
+                        return Err(e);
+                    }
+                }
+            }
+
             match modify_args(
                 &mut args,
                 &ModifyOptions {
                     name: &config.name,
                     description: &config.description,
-                    compile_target_file: &config.build_output(),
-                    compile_minify: config.minify,
-                    compile_defines: &config.defines,
-                    app_data_location: &user_directory.join("AppData").join("Roaming"),
+                    write_output: &config.build_output(),
                 },
-                &mut logs_file,
-            )
-            .await
-            {
+            ) {
                 Ok(_) => {}
                 Err(e) => {
                     // make vex ignore the error but still visible to user
