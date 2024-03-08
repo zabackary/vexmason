@@ -4,7 +4,7 @@ mod template;
 use std::{collections::HashMap, path::Path};
 
 use anyhow::{bail, Context};
-use log::{info, warn};
+use log::{error, info, warn};
 use model::{JsonConfigV1, JsonConfigV1Overrides};
 use tokio::{
     fs,
@@ -13,7 +13,7 @@ use tokio::{
 
 pub use model::{ConfigDefineType, ResolvedConfig};
 
-use self::template::evaluate_template;
+use self::{model::CURRENT_CONFIG_VERSION, template::evaluate_template};
 
 const DEFAULT_DESCRIPTION: &str = "compiled by vexmason
 at {{ time/hour }}:{{ time/minute }}
@@ -58,30 +58,55 @@ async fn resolved_config_from_files(
                 .expect("failed to decode config path to utf8")
         )
     })?;
-    let config_overrides = config_overrides_from_file(config_overrides_path, config.config_version)
-        .await
-        .with_context(|| {
-            format!(
-                "failed to read config overrides file from {}",
-                config_path
-                    .to_str()
-                    .expect("failed to decode config path to utf8")
-            )
-        })?;
+    let config_overrides =
+        config_overrides_from_file(config_overrides_path, &config.config_version)
+            .await
+            .with_context(|| {
+                format!(
+                    "failed to read config overrides file from {}",
+                    config_path
+                        .to_str()
+                        .expect("failed to decode config path to utf8")
+                )
+            })?;
     if config.config_version != config_overrides.config_version {
         bail!("config and config overrides versions don't match");
     }
+    let req = semver::VersionReq::parse(&format!("^{}", config.config_version)).with_context(||anyhow::anyhow!("failed to parse config version. it must be of the format 1.0 or 1.0.0 (e.g. 1.5 or 2.1 would be valid)"))?;
+    if !req.matches(&CURRENT_CONFIG_VERSION) {
+        error!(
+            "your config requires version {}; this installation of vexmason supports up to {}",
+            config.config_version, CURRENT_CONFIG_VERSION
+        );
+        bail!("the version specified in your config is not supported by your installation of vexmason. try updating.");
+    }
 
     // resolve defines
-    let mut resolved_defines = config.default_defines.unwrap_or_else(|| HashMap::new());
+    let default_defines = config.default_defines.unwrap_or_else(|| HashMap::new());
+    let mut resolved_defines = HashMap::new();
+    for (define, value) in &default_defines {
+        if !value.validate_default() {
+            bail!("the default define defined in {} did not pass its own type validation. check that `default_defines.{}.default` is contained in `default_defines.{}.options`.", CONFIG_FILE, define, define);
+        }
+        resolved_defines.insert(define.to_owned(), value.to_owned().into());
+    }
     if let Some(defines_overrides) = config_overrides.defines_overrides {
         for (define_override, value) in defines_overrides {
             if resolved_defines.get(&define_override).is_some() {
-                info!(
-                    "overriding define with local value: {} = {}\n",
-                    define_override, value
-                );
-                resolved_defines.insert(define_override, value);
+                if let Some(default) = default_defines.get(&define_override) {
+                    if default.validate(&value) {
+                        info!(
+                            "overriding define with local value: {} = {}",
+                            define_override, value
+                        );
+                        resolved_defines.insert(define_override, value);
+                    } else {
+                        bail!(
+                            "local config defines '{}' with the value '{}', but the default for that define in {} doesn't allow that type. make sure it's either included in `default_defines.{}.options` (if that exists) or the type is the same as the default if `default_defines.{}.typed` is `true`",
+                            define_override, value, CONFIG_FILE, define_override, define_override
+                        );
+                    }
+                }
             } else {
                 warn!(
                     "local config defines '{}' without a default value being present in the main config file, ignoring",
@@ -127,7 +152,6 @@ async fn resolved_config_from_files(
     )?;
 
     Ok(ResolvedConfig {
-        config_version: config.config_version,
         defines: resolved_defines,
         description: resolved_description,
         language: config.language,
@@ -159,7 +183,7 @@ async fn config_from_file(path: &Path) -> anyhow::Result<JsonConfigV1> {
 
 async fn config_overrides_from_file(
     path: &Path,
-    config_version: usize,
+    config_version: &str,
 ) -> anyhow::Result<JsonConfigV1Overrides> {
     match fs::File::open(path).await {
         Ok(mut file) => {
@@ -170,7 +194,7 @@ async fn config_overrides_from_file(
             Ok(config)
         }
         Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(JsonConfigV1Overrides {
-            config_version: config_version,
+            config_version: config_version.to_owned(),
             computer_name: None,
             defines_overrides: None,
         }),
