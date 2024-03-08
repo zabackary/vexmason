@@ -1,16 +1,13 @@
-use std::{
-    io::Write,
-    path::Path,
-    process::{Command, Stdio},
-};
+use std::{io::Write, path::Path, process::Stdio};
 
 use anyhow::{bail, ensure, Context};
 
 use octocrab::models::repos::Asset;
-use reqwest::Response;
+use reqwest::{Response, Url};
 use tokio::{
     fs::{self, File},
     io::{AsyncWriteExt, BufWriter},
+    process::Command,
 };
 use vexmason::{
     check_versions,
@@ -36,28 +33,82 @@ fn pause(msg: &str) {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    match body().await {
-        Ok(_) => Ok(()),
+    let subprocess = std::env::args().skip(1).next() == Some("--subprocess".to_string());
+    match body(subprocess).await {
+        Ok(_) => {
+            println!("Installation has finished successfully.");
+            if !subprocess {
+                pause("Press ENTER to exit...");
+            }
+            Ok(())
+        }
         Err(err) => {
             eprintln!("Something went wrong! Try re-running the installer. If that doesn't work, create a GitHub issue.\n{err:?}");
-            pause("\nPress ENTER to exit");
+            if !subprocess {
+                pause("\nPress ENTER to exit");
+            }
             Err(err)
         }
     }
 }
 
-async fn body() -> anyhow::Result<()> {
+async fn body(subprocess: bool) -> anyhow::Result<()> {
     ensure!(!cfg!(target_os = "macos"), "At this time, MacOS is not supported. if you would like to support it, create a GitHub issue.");
     ensure!(cfg!(target_os = "windows"), "At this time, Windows is the only supported OS. Please create a GitHub issue if you would like to help support another.");
 
     check_versions::check_versions()?;
 
-    println!("Welcome to the vexmason installation wizard.");
-    println!("Downloading latest release metadata...");
+    let version = format!("v{}", env!("CARGO_PKG_VERSION"));
+    println!(
+        "Welcome to the vexmason installation wizard for {}.",
+        version
+    );
+    if subprocess {
+        println!("This installer was started as a subprocess.");
+    }
     let octocrab = octocrab::instance();
     let repo = octocrab.repos(GITHUB_RELEASE_OWNER, GITHUB_RELEASE_REPO);
-    let release = repo.releases().get_latest().await?;
-    println!("> Downloaded.");
+    let releases = repo.releases();
+    println!("Checking for the latest updates...");
+    let latest_release = releases.get_latest().await?;
+    if latest_release.tag_name != version {
+        println!("It looks like there's a newer version of the installer associated with the latest version {}.", latest_release.tag_name);
+        println!("Downloading it to be used...");
+        let mut installer_asset = None;
+        for asset in latest_release.assets {
+            if asset.name == "vexmason-installer.exe" {
+                installer_asset = Some(asset);
+            }
+        }
+        if let Some(installer_asset) = installer_asset {
+            let filename = format!("vexmason-installer-{}.exe", latest_release.tag_name,);
+            let dir = std::env::temp_dir();
+            let path = dir.join(&filename);
+            if path.try_exists()? {
+                bail!("It seems like the file {} in {} already exists. If that's the installer for the new version, run that directly.", filename, dir.to_string_lossy());
+            }
+            install_bin(&filename, &installer_asset.browser_download_url, &dir).await?;
+            println!("Downloaded.");
+            println!("\n--- {} installer output ---\n", latest_release.tag_name);
+            let mut child = Command::new(&path)
+                .arg("--subprocess")
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit())
+                .spawn()
+                .with_context(|| "failed to spawn new installer")?;
+            child.wait().await?;
+            println!("\n--- finished {} installer ---", latest_release.tag_name);
+            println!("Removing installer...");
+            fs::remove_file(path).await?;
+            println!("Removed.");
+            return Ok(());
+        } else {
+            eprintln!(
+                "Failed to find the latest installer, falling back to an outdated install of {}",
+                version
+            );
+        }
+    }
 
     let installation_directory = get_installation_path(std::env::current_exe().ok().as_deref())?;
     let already_installed = installation_directory.try_exists()?;
@@ -85,18 +136,26 @@ async fn body() -> anyhow::Result<()> {
                 .unwrap_or("unknown directory")
         );
     }
+    println!("Downloading release metadata for {}...", version);
+    let release = releases
+        .get_by_tag(&version)
+        .await
+        .with_context(||anyhow::anyhow!("It seems like there's no release on GitHub yet for this version ({}). Maybe someone forgot to upload it.", version))?;
+    println!("> Downloaded.");
+
     println!("Installing python-compiler...");
     std::fs::create_dir_all(installation_directory.join("bin"))?;
     let compiler_dir = installation_directory.join("lib").join("python-compiler");
     if compiler_dir.try_exists()? {
         println!("> python-compiler seems to be cloned already, pulling the latest changes...");
-        pull_git_lib(&compiler_dir)?;
+        pull_git_lib(&compiler_dir).await?;
     } else {
         println!("> Cloning python-compiler...");
         install_git_lib(
             &compiler_dir,
             "https://github.com/zabackary/python-compiler.git",
-        )?;
+        )
+        .await?;
     }
 
     println!("Installing vexcom hook...");
@@ -171,53 +230,45 @@ async fn body() -> anyhow::Result<()> {
     }
     let bin_dir = installation_directory.join("bin");
     println!("Downloading binaries...");
-    install_bin(&release.assets, "vexmason.exe", &bin_dir).await?;
-    println!("Installation has finished.");
-    pause("Press ENTER to exit...");
-    Ok(())
-}
-
-async fn install_bin(assets: &Vec<Asset>, name: &str, dir: &Path) -> anyhow::Result<()> {
-    let mut found_asset: Option<&Asset> = None;
-    for asset in assets {
-        if asset.name == name {
-            found_asset = Some(asset);
+    for asset in release.assets {
+        if asset.name != "vexcom.exe" {
+            install_bin(&asset.name, &asset.browser_download_url, &bin_dir).await?;
         }
     }
-    if let Some(asset) = found_asset {
-        println!("> downloading {name}...");
-        let mut response = reqwest::get(asset.browser_download_url.clone())
-            .await
-            .with_context(|| "failed to fetch artifact")?
-            .error_for_status()
-            .with_context(|| "failed to fetch artifact")?;
-        write_chunks(
-            &mut response,
-            &mut File::create(dir.join(name))
-                .await
-                .with_context(|| "failed to create file to read download")?,
-        )
-        .await
-        .with_context(|| "failed to copy download content")?;
-    } else {
-        bail!("can't find {} artifact in latest release", name);
-    }
     Ok(())
 }
 
-fn install_git_lib(path: &Path, git_origin: &str) -> anyhow::Result<()> {
+async fn install_bin(filename: &str, url: &Url, dir: &Path) -> anyhow::Result<()> {
+    println!("> downloading {}...", filename);
+    let mut response = reqwest::get(url.clone())
+        .await
+        .with_context(|| "failed to fetch artifact")?
+        .error_for_status()
+        .with_context(|| "failed to fetch artifact")?;
+    write_chunks(
+        &mut response,
+        &mut File::create(dir.join(filename))
+            .await
+            .with_context(|| "failed to create file to read download")?,
+    )
+    .await
+    .with_context(|| "failed to copy download content")?;
+    Ok(())
+}
+
+async fn install_git_lib(path: &Path, git_origin: &str) -> anyhow::Result<()> {
     let mut child = Command::new("git")
-        .args([
-            "clone",
-            git_origin,
-            path.to_str()
-                .ok_or(anyhow::anyhow!("path is not valid utf-8"))?,
-        ])
+        .args(["clone", "--depth=1", git_origin])
+        .arg(path)
+        .stdout(Stdio::null())
         .stderr(Stdio::inherit())
         .spawn()
         .with_context(|| "failed to spawn git")?;
 
-    let exit_status = child.wait().with_context(|| "failed to wait on child")?;
+    let exit_status = child
+        .wait()
+        .await
+        .with_context(|| "failed to wait on child")?;
     if exit_status.success() {
         Ok(())
     } else {
@@ -228,15 +279,19 @@ fn install_git_lib(path: &Path, git_origin: &str) -> anyhow::Result<()> {
     }
 }
 
-fn pull_git_lib(path: &Path) -> anyhow::Result<()> {
+async fn pull_git_lib(path: &Path) -> anyhow::Result<()> {
     let mut child = Command::new("git")
         .arg("pull")
+        .stdout(Stdio::null())
         .stderr(Stdio::inherit())
         .current_dir(path)
         .spawn()
         .with_context(|| "failed to spawn git")?;
 
-    let exit_status = child.wait().with_context(|| "failed to wait on child")?;
+    let exit_status = child
+        .wait()
+        .await
+        .with_context(|| "failed to wait on child")?;
     if exit_status.success() {
         Ok(())
     } else {
@@ -252,5 +307,6 @@ async fn write_chunks(response: &mut Response, file: &mut fs::File) -> anyhow::R
     while let Some(chunk) = response.chunk().await? {
         writer.write_all(&chunk).await?;
     }
+    writer.flush().await?;
     Ok(())
 }
