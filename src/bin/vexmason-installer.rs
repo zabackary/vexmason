@@ -6,13 +6,12 @@ use std::{
 
 use anyhow::{bail, ensure, Context};
 
-use futures::TryStreamExt;
 use octocrab::models::repos::Asset;
+use reqwest::Response;
 use tokio::{
     fs::{self, File},
-    io::{self},
+    io::{AsyncWriteExt, BufWriter},
 };
-use tokio_util::compat::FuturesAsyncReadCompatExt;
 use vexmason::{
     check_versions,
     installation_location::{
@@ -40,7 +39,7 @@ async fn main() -> anyhow::Result<()> {
     match body().await {
         Ok(_) => Ok(()),
         Err(err) => {
-            eprintln!("Something went wrong!\n{err:?}");
+            eprintln!("Something went wrong! Try re-running the installer. If that doesn't work, create a GitHub issue.\n{err:?}");
             pause("\nPress ENTER to exit");
             Err(err)
         }
@@ -114,7 +113,7 @@ async fn body() -> anyhow::Result<()> {
         target_os = "linux",
         any(target_arch = "x86", target_arch = "x86_64")
     )) {
-        "linux-arm64"
+        "linux-x86"
     } else if cfg!(target_os = "macos") {
         "osx"
     } else {
@@ -141,21 +140,16 @@ async fn body() -> anyhow::Result<()> {
             println!("> making a backup of {VEXCOM_NAME}...");
             fs::copy(vexcom_dir.join(VEXCOM_NAME), vexcom_dir.join("vexcom.bak")).await?;
             println!("> found artifact, downloading to {VEXCOM_TMP_NAME}...");
-            let response = reqwest::get(asset.browser_download_url.clone())
+            let mut response = reqwest::get(asset.browser_download_url.clone())
                 .await
                 .with_context(|| "failed to fetch artifact")?
                 .error_for_status()
                 .with_context(|| "failed to fetch artifact")?;
-            let body = response.bytes_stream();
-            let mut out = File::create(vexcom_dir.join(VEXCOM_TMP_NAME))
-                .await
-                .with_context(|| "failed to create tmp file to read download")?;
-            io::copy(
-                &mut body
-                    .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
-                    .into_async_read()
-                    .compat(),
-                &mut out,
+            write_chunks(
+                &mut response,
+                &mut File::create(vexcom_dir.join(VEXCOM_TMP_NAME))
+                    .await
+                    .with_context(|| "failed to create tmp file to read download")?,
             )
             .await
             .with_context(|| "failed to copy download content")?;
@@ -192,21 +186,16 @@ async fn install_bin(assets: &Vec<Asset>, name: &str, dir: &Path) -> anyhow::Res
     }
     if let Some(asset) = found_asset {
         println!("> downloading {name}...");
-        let response = reqwest::get(asset.browser_download_url.clone())
+        let mut response = reqwest::get(asset.browser_download_url.clone())
             .await
             .with_context(|| "failed to fetch artifact")?
             .error_for_status()
             .with_context(|| "failed to fetch artifact")?;
-        let body = response.bytes_stream();
-        let mut out = File::create(dir.join(name))
-            .await
-            .with_context(|| "failed to create file to read download")?;
-        io::copy(
-            &mut body
-                .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
-                .into_async_read()
-                .compat(),
-            &mut out,
+        write_chunks(
+            &mut response,
+            &mut File::create(dir.join(name))
+                .await
+                .with_context(|| "failed to create file to read download")?,
         )
         .await
         .with_context(|| "failed to copy download content")?;
@@ -256,4 +245,12 @@ fn pull_git_lib(path: &Path) -> anyhow::Result<()> {
             exit_status.code().unwrap_or(-1)
         ))
     }
+}
+
+async fn write_chunks(response: &mut Response, file: &mut fs::File) -> anyhow::Result<()> {
+    let mut writer = BufWriter::new(file);
+    while let Some(chunk) = response.chunk().await? {
+        writer.write_all(&chunk).await?;
+    }
+    Ok(())
 }
