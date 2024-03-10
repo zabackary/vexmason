@@ -1,6 +1,7 @@
-# vexmason
-
-> _"If you can think of a better name, let me know."_
+<div align="center">
+      <img src="./assets/vexmason-logo-outlined.svg" alt="vexmason logo" width="240" height="240" />
+</div>
+<h1 align="center">vexmason</h1>
 
 <table align="center">
       <tr>
