@@ -63,7 +63,9 @@ pub fn get_installation_path(reference_path: Option<&Path>) -> anyhow::Result<Pa
         };
         Ok(local_app_data.join(INSTALLATION_DIRECTORY))
     } else if cfg!(target_os = "linux") {
-        Ok(PathBuf::from_str("~/.local/bin")?.join(INSTALLATION_DIRECTORY))
+        Ok(PathBuf::from_str("~/.vexmason")?.join(INSTALLATION_DIRECTORY))
+    } else if cfg!(target_os = "macos") {
+        Ok(PathBuf::from_str("~/.vexmason")?.join(INSTALLATION_DIRECTORY))
     } else {
         bail!("unsupported operating system")
     }
