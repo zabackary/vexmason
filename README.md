@@ -29,6 +29,15 @@ vexmason utilizes
 [`python-compiler`](https://github.com/zabackary/python-compiler) to bundle the
 files, which I also wrote.
 
+Why "vexmason"? Mason means to someone/thing who builds something, and I didn't
+have any better ideas.
+
+> [!WARNING]
+>
+> As the maintainer's team has switched to either PROS or vexide, this repo isn't
+> maintained much anymore. No new features will be added but bugs will still be
+> fixed if they are reported.
+
 ## Features
 
 - [x] Integrate into the native VEX VSCode extension and bundle files behind-
