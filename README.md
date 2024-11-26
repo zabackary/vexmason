@@ -34,24 +34,30 @@ have any better ideas.
 
 > [!WARNING]
 >
-> As the maintainer's team has switched to either PROS or vexide, this repo isn't
+> ~~As the maintainer's team has switched to either PROS or vexide, this repo isn't
 > maintained much anymore. No new features will be added but bugs will still be
-> fixed if they are reported.
+> fixed if they are reported.~~
+>
+> One of the teams working with the maintainer has switched to vexide, but
+> there are still two teams who will use vexmason in the coming season.
 
 ## Features
 
 - [x] Integrate into the native VEX VSCode extension and bundle files behind-
       the-scenes.
 - [x] Read a config file and substitute defined constants.
-- [ ] _(in progress)_ Lets you select possible constant values from a UI.
+- [ ] Completely replace the VEXCode VSCode extension for easier installation
+      and better DX
 
 ## Installation
 
 > [!NOTE]
 >
-> VEXMason is only supported on Windows for now. The code is cross-platform,
+> vexmason is only supported on Windows for now. The code is cross-platform,
 > though, so as soon as I finish initial development I'll work on supporting
 > Linux. Please let me know if you would like to try to build on OSX.
+>
+> The maintainer now uses a Linux laptop, so it's a bit ironic.
 
 Installation is easy. Just head over to the
 [GitHub releases page](https://github.com/zabackary/vexmason/releases/) and
@@ -112,7 +118,7 @@ built: the `vexcom` binary, the main binary ("`vexmason`"), and the installer
 ### Steps to put the binaries in the right place
 
 1. Run the installer. That's it. It will fetch the binaries from GitHub, though,
-   so| make sure you trust me.
+   so make sure you trust me.
 
 or
 
