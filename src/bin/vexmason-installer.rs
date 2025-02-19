@@ -54,7 +54,7 @@ async fn main() -> anyhow::Result<()> {
 
 async fn body(subprocess: bool) -> anyhow::Result<()> {
     ensure!(!cfg!(target_os = "macos"), "At this time, MacOS is not supported. if you would like to support it, create a GitHub issue.");
-    ensure!(cfg!(target_os = "windows"), "At this time, Windows is the only supported OS. Please create a GitHub issue if you would like to help support another.");
+    // ensure!(cfg!(target_os = "windows"), "At this time, Windows is the only supported OS. Please create a GitHub issue if you would like to help support another.");
 
     check_versions::check_versions()?;
 
@@ -178,10 +178,30 @@ async fn body(subprocess: bool) -> anyhow::Result<()> {
     } else {
         bail!("unsupported operating system")
     };
-    let vexcom_dir = get_user_directory(std::env::current_exe().ok().as_deref())?
+    println!("> arch_dir_name: {}", arch_dir_name);
+    let vscode_extensions_dir = get_user_directory(std::env::current_exe().ok().as_deref())?
         .join(".vscode")
-        .join("extensions")
-        .join("vexrobotics.vexcode-0.5.0")
+        .join("extensions");
+    let mut dir_iterator = tokio::fs::read_dir(&vscode_extensions_dir).await?;
+    let vexcode_subdir = loop {
+        let entry = dir_iterator
+            .next_entry()
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("no vexcode extension found"))?;
+        if entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with("vexrobotics.vexcode")
+        {
+            break entry.file_name();
+        }
+    };
+    println!(
+        "> VEXCode extension location: {}",
+        vexcode_subdir.to_string_lossy()
+    );
+    let vexcom_dir = vscode_extensions_dir
+        .join(vexcode_subdir)
         .join("resources")
         .join("tools")
         .join("vexcom")
